@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>乌龙茶识别</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#8a4b2d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍵</text></svg>">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #f6f1e9; color: #3a2a1d; min-height: 100vh; }
+header { background: linear-gradient(135deg,#8a4b2d,#b06a3b); color: #fff; padding: 18px 16px 14px; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 20px; font-weight: 700; }
+header p { font-size: 12px; opacity: .85; margin-top: 2px; }
+nav { display: flex; background: #fff; border-bottom: 1px solid #e4d8c8; position: sticky; top: 72px; z-index: 9; }
+nav a { flex: 1; text-align: center; padding: 10px 0; font-size: 13px; color: #7a6350; text-decoration: none; border-bottom: 3px solid transparent; }
+nav a.active { color: #8a4b2d; font-weight: 700; border-bottom-color: #8a4b2d; }
+main { padding: 16px; max-width: 720px; margin: 0 auto; }
+.card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(90,60,30,.08); }
+.btn { display: inline-block; background: #8a4b2d; color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 15px; cursor: pointer; }
+.btn:disabled { background: #c9b8a8; cursor: not-allowed; }
+.btn.secondary { background: #fff; color: #8a4b2d; border: 1.5px solid #8a4b2d; }
+#preview { width: 100%; max-height: 340px; object-fit: contain; border-radius: 10px; background: #efe7da; display: none; margin-bottom: 12px; }
+.drop { border: 2px dashed #c9b299; border-radius: 12px; padding: 30px 12px; text-align: center; color: #8a6b4f; background: #fbf7f0; cursor: pointer; }
+.drop strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.drop small { font-size: 12px; }
+#status { font-size: 13px; color: #8a4b2d; margin: 10px 0 0; min-height: 20px; }
+#result { display: none; }
+#result h2 { font-size: 17px; margin-bottom: 10px; color: #5b3a20; }
+.rank { display: flex; align-items: center; padding: 9px 0; border-bottom: 1px dashed #e8dccb; }
+.rank:last-child { border-bottom: none; }
+.rank .idx { width: 26px; height: 26px; border-radius: 50%; background: #8a4b2d; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-right: 10px; flex-shrink: 0; }
+.rank.top1 .idx { background: #d98e2b; }
+.rank .info { flex: 1; }
+.rank .name { font-weight: 700; font-size: 15px; }
+.rank .prob { font-size: 13px; color: #7a6350; }
+.rank .bar-wrap { width: 90px; background: #efe7da; border-radius: 4px; height: 8px; overflow: hidden; margin-left: 8px; }
+.rank .bar { height: 100%; background: #d98e2b; }
+.desc { font-size: 13px; color: #5b4a38; background: #fbf7f0; border-radius: 8px; padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
+.warn { font-size: 13px; color: #c0392b; background: #fdf0ec; border-radius: 8px; padding: 10px 12px; margin-top: 10px; display: none; }
+footer { text-align: center; font-size: 11px; color: #a08a72; padding: 20px 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍵 乌龙茶品种识别</h1>
+  <p>干茶识别 · v7 模型（85.0%）</p>
+</header>
+<nav>
+  <a href="index.html" class="active">识别</a>
+  <a href="collect.html">数据入口</a>
+  <a href="iterations.html">迭代效果</a>
+</nav>
+<main>
+  <div class="card">
+    <div class="drop" id="drop">
+      <strong>点击拍照 / 选择图片</strong>
+      <small>支持相机或相册上传干茶特写</small>
+      <input type="file" id="file" accept="image/*" capture="environment" style="display:none">
+    </div>
+    <img id="preview" alt="预览">
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button class="btn" id="btnPredict" disabled>识别品种</button>
+      <button class="btn secondary" id="btnReset">重新选择</button>
+    </div>
+    <p id="status"></p>
+  </div>
+
+  <div class="card" id="result">
+    <h2>识别结果</h2>
+    <div id="rankList"></div>
+    <div class="warn" id="warn">置信度低于 60%，请对准干茶重新拍摄（避免茶汤、叶底、包装）。</div>
+    <div class="desc" id="desc"></div>
+  </div>
+
+  <div class="card" id="usage">
+    <h2 style="font-size:15px;margin-bottom:8px;">使用提示</h2>
+    <p style="font-size:13px;line-height:1.7;color:#5b4a38;">
+      1. 拍摄<strong>干茶</strong>特写，避开茶汤、叶底、包装盒与文字。<br>
+      2. 光线均匀，主体占画面 70% 以上。<br>
+      3. 首次识别需下载模型（约 16MB），之后自动缓存、可离线使用。
+    </p>
+  </div>
+</main>
+<footer>乌龙茶品种识别系统 · 数据与模型持续迭代中</footer>
+
+<script src="lib/ort.min.js"></script>
+<script src="app.js?v=1"></script>
+<script>
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("file");
+const preview = document.getElementById("preview");
+const btnPredict = document.getElementById("btnPredict");
+const btnReset = document.getElementById("btnReset");
+const statusEl = document.getElementById("status");
+const resultCard = document.getElementById("result");
+const rankList = document.getElementById("rankList");
+const warnEl = document.getElementById("warn");
+const descEl = document.getElementById("desc");
+
+let currentImg = null;
+
+drop.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", async () => {
+  const f = fileInput.files[0];
+  if (!f) return;
+  statusEl.textContent = "";
+  try {
+    currentImg = await loadImageFromFile(f);
+  } catch (e) {
+    statusEl.textContent = "图片读取失败";
+    return;
+  }
+  preview.src = URL.createObjectURL(f);
+  preview.style.display = "block";
+  btnPredict.disabled = false;
+  resultCard.style.display = "none";
+});
+
+btnPredict.addEventListener("click", async () => {
+  if (!currentImg) return;
+  btnPredict.disabled = true;
+  statusEl.textContent = "正在推理…";
+  try {
+    const ranked = await predict(currentImg);
+    statusEl.textContent = "";
+    renderResult(ranked);
+    const top = ranked[0];
+    await dbAdd("history", {
+      cls: top.cls, prob: top.prob, ts: Date.now(),
+      top3: ranked.map(r => r.cls + " " + fmtPct(r.prob)).join(" / "),
+    });
+  } catch (e) {
+    statusEl.textContent = "推理失败：" + e.message;
+    console.error(e);
+  } finally {
+    btnPredict.disabled = false;
+  }
+});
+
+function renderResult(ranked) {
+  rankList.innerHTML = "";
+  ranked.forEach((r, i) => {
+    const row = document.createElement("div");
+    row.className = "rank" + (i === 0 ? " top1" : "");
+    row.innerHTML =
+      '<span class="idx">' + (i + 1) + "</span>" +
+      '<div class="info"><div class="name">' + r.cls + "</div>" +
+      '<div class="prob">置信度 ' + fmtPct(r.prob) + "</div></div>" +
+      '<div class="bar-wrap"><div class="bar" style="width:' + (r.prob * 100) + '%"></div></div>';
+    rankList.appendChild(row);
+  });
+  const top = ranked[0];
+  warnEl.style.display = top.prob < 0.6 ? "block" : "none";
+  descEl.innerHTML = "<strong>" + top.cls + "：</strong>" + (CLASS_DESC[top.cls] || "") +
+    "<br>" + (CLASS_HINT[top.cls] || "");
+  resultCard.style.display = "block";
+}
+
+btnReset.addEventListener("click", () => {
+  currentImg = null;
+  fileInput.value = "";
+  preview.style.display = "none";
+  resultCard.style.display = "none";
+  btnPredict.disabled = true;
+  statusEl.textContent = "";
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

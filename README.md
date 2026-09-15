@@ -1,0 +1,77 @@
+# 乌龙茶品种识别 PWA — 部署与维护说明
+
+干茶识别 6 大品种（东方美人 / 台湾乌龙 / 安溪铁观音 / 广东单丛 / 武夷岩茶 / 黄金桂）。
+当前生产模型 **v7（测试准确率 85.0%）**，浏览器端 ONNX 推理，纯静态、可离线（PWA）。
+
+## 一、文件结构
+
+```
+pwa/
+├─ index.html        识别页（拍照/上传 → Top-3 + 置信度）
+├─ collect.html      数据入口页（上传 → 模型预判 → 人工确认品种 → 待入库清单 → 导出 zip）
+├─ iterations.html   迭代效果页（各版本准确率 + 混淆矩阵 + 文字说明）
+├─ app.js            公共逻辑（模型加载/预处理/推理/IndexedDB）
+├─ manifest.json     PWA 清单
+├─ sw.js             Service Worker（缓存优先，离线可用）
+├─ iterations.json   迭代记录数据（训练端维护更新）
+├─ icon-192.png / icon-512.png
+├─ lib/              ort.min.js + jszip（本地）；wasm 运行时走 CDN，由 SW 缓存
+└─ model/oolong_v7_single.onnx   v7 模型（FP32, 16.4MB）
+```
+
+> 总大小约 17MB，GitHub 网页上传单次限制 25MB，一次上传即可。
+
+## 二、部署到 GitHub Pages（无需 git，网页操作）
+
+1. 打开 <https://github.com/new>，新建**公开仓库**（如 `oolong-tea-recognizer`），不要勾选自动生成 README
+2. 进入仓库 → 点 **Add file → Upload files** → 把 `pwa/` 目录下**所有文件**拖入上传（保持目录结构：lib/、model/ 都在）→ Commit
+3. 仓库 **Settings → Pages** → Source 选 `Deploy from a branch` → 分支选 `main` + `/ (root)` → Save
+4. 等 1-2 分钟，访问 `https://<你的用户名>.github.io/<仓库名>/` 即可使用
+5. 手机浏览器打开该网址 → 浏览器菜单「添加到主屏幕」→ 以 App 形式使用（支持拍照）
+
+> 注意：模型 16MB，首次加载约 10-30 秒（wasm 运行时从 CDN 下载并由浏览器缓存），之后缓存秒开可离线。
+
+## 三、模型迭代闭环（部署后持续优化）
+
+```
+手机上传实拍干茶图（数据入口页）
+   → 确认品种、导出 zip
+   → 发给训练端（我）
+   → 质量门过滤 + 标签核对 → 入库
+   → 攒批后全量重训（每轮约 30 分钟）
+   → 混淆矩阵验收（达标才采纳，不达标回滚）
+   → 更新生产模型 + iterations.json → 部署
+```
+
+### 更新一次模型的完整步骤（训练端执行）
+
+1. 训练出新模型 `best_model_vN.pth`（复用 `train_v5.py --data-dir dataset_vN --tag vN`）
+2. 转换：`export_onnx.py`（改模型路径）→ 生成 `oolong_vN_single.onnx`，**验证测试集准确率一致**
+3. 替换 `pwa/model/oolong_v7_single.onnx`（或新增 vN 文件并在 `app.js` 改 `MODEL_URL`）
+4. 追加 `pwa/iterations.json` 一条新记录（版本/日期/数据量/准确率/混淆矩阵/文字说明），并把 `current_version` 更新
+5. 更新各页 `app.js?v=N` 版本号 + `sw.js` 中 `CACHE = "oolong-v7-vN"`（强制旧用户刷新缓存）
+6. 上传覆盖仓库文件，GitHub Pages 自动更新
+
+### 数据质量门（防止污染，吸取 v8 教训）
+
+- 只收**干茶特写**：拒绝茶汤、叶底、包装盒、带长段文字的图
+- 微博/小红书「随手拍」结果污染严重，**不再作为数据源**；补数据优先淘宝商品主图或用户实拍
+- 每张入库图必须有**人工确认的品种标签**（模型预判仅作参考）
+
+## 四、本地预览
+
+```bash
+python -m http.server 8765 --directory pwa
+# 浏览器打开 http://localhost:8765/
+```
+
+## 五、版本历史
+
+| 版本 | 准确率 | 状态 | 说明 |
+|---|---|---|---|
+| v5 | 83.3% | 历史 | 干净基线（修复泄漏后） |
+| v6 | 79.2% | 历史 | 主体分割方案（证伪） |
+| **v7** | **85.0%** | **生产** | 补淘宝岩茶数据，当前部署 |
+| v8 | 78.2% | 弃用 | 微博/小红书补爬污染 |
+| v9 | 75.6% | 弃用 | 激进过滤过度 |
+| v10 | 76.1% | 弃用 | 温和过滤仍污染 |

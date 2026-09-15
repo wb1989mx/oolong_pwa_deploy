@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>迭代效果 - 乌龙茶识别</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#8a4b2d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍵</text></svg>">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #f6f1e9; color: #3a2a1d; min-height: 100vh; }
+header { background: linear-gradient(135deg,#8a4b2d,#b06a3b); color: #fff; padding: 18px 16px 14px; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 20px; font-weight: 700; }
+header p { font-size: 12px; opacity: .85; margin-top: 2px; }
+nav { display: flex; background: #fff; border-bottom: 1px solid #e4d8c8; position: sticky; top: 72px; z-index: 9; }
+nav a { flex: 1; text-align: center; padding: 10px 0; font-size: 13px; color: #7a6350; text-decoration: none; border-bottom: 3px solid transparent; }
+nav a.active { color: #8a4b2d; font-weight: 700; border-bottom-color: #8a4b2d; }
+main { padding: 16px; max-width: 720px; margin: 0 auto; }
+.card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(90,60,30,.08); }
+.card h2 { font-size: 16px; margin-bottom: 8px; color: #5b3a20; }
+.ver { border: 1.5px solid #e8dccb; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.ver.prod { border-color: #d98e2b; background: #fdf8ef; }
+.ver .head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ver .v { font-size: 16px; font-weight: 800; color: #8a4b2d; }
+.ver .nm { font-size: 14px; font-weight: 700; }
+.ver .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.badge.prod { background: #d98e2b; color: #fff; }
+.badge.hist { background: #efe7da; color: #7a6350; }
+.badge.void { background: #e8d5d0; color: #a04030; }
+.ver .acc { font-size: 15px; font-weight: 700; color: #5b3a20; margin: 6px 0; }
+.ver .meta { font-size: 12px; color: #a08a72; margin-bottom: 6px; }
+.ver .sum { font-size: 13px; color: #5b4a38; line-height: 1.65; margin-bottom: 8px; }
+.ver canvas { width: 100%; max-width: 420px; display: block; margin: 4px auto 0; border-radius: 8px; }
+footer { text-align: center; font-size: 11px; color: #a08a72; padding: 20px 0 30px; }
+#err { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 模型迭代效果</h1>
+  <p>混淆矩阵 + 迭代记录</p>
+</header>
+<nav>
+  <a href="index.html">识别</a>
+  <a href="collect.html">数据入口</a>
+  <a href="iterations.html" class="active">迭代效果</a>
+</nav>
+<main>
+  <div class="card" id="err">
+    <p style="font-size:13px;color:#c0392b;">迭代数据加载失败，请检查网络后刷新。</p>
+  </div>
+  <div class="card">
+    <h2>迭代历史</h2>
+    <div id="list"></div>
+  </div>
+  <div class="card">
+    <h2>混淆矩阵说明</h2>
+    <p style="font-size:13px;line-height:1.7;color:#5b4a38;">
+      每行代表真实品种，每列代表模型预测。对角线越深 = 识别越准。<br>
+      行末百分比为各品种召回率（该品种被正确识别的比例）。颜色越深数值越大。
+    </p>
+  </div>
+</main>
+<footer>乌龙茶品种识别系统 · 迭代记录由训练端维护更新</footer>
+
+<script src="app.js?v=1"></script>
+<script>
+const listEl = document.getElementById("list");
+
+function drawCM(canvas, cm, classes) {
+  const n = classes.length;
+  const dpr = window.devicePixelRatio || 1;
+  const size = Math.min(420, canvas.clientWidth || 320);
+  const cell = Math.floor((size - 60) / n);
+  const H = 40 + cell * n + 26;
+  canvas.width = size * dpr; canvas.height = H * dpr;
+  canvas.style.height = H + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+
+  const maxV = Math.max(...cm.flat());
+  const rowSum = cm.map(r => r.reduce((a, b) => a + b, 0) || 1);
+
+  ctx.fillStyle = "#5b3a20"; ctx.font = "11px sans-serif"; ctx.textAlign = "center";
+  classes.forEach((c, j) => {
+    ctx.save();
+    ctx.translate(60 + cell * j + cell / 2, 26);
+    ctx.rotate(-0.55);
+    ctx.fillText(c, 0, 0);
+    ctx.restore();
+  });
+  ctx.textAlign = "right";
+  classes.forEach((c, i) => {
+    ctx.fillText(c, 54, 40 + cell * i + cell / 2 + 4);
+  });
+
+  cm.forEach((row, i) => {
+    row.forEach((v, j) => {
+      const x = 60 + cell * j, y = 40 + cell * i;
+      const alpha = maxV > 0 ? 0.08 + 0.85 * (v / maxV) : 0.08;
+      ctx.fillStyle = i === j ? "rgba(217,142,43," + alpha + ")" : "rgba(138,75,45," + alpha + ")";
+      ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      if (v > 0) {
+        ctx.fillStyle = v / rowSum[i] > 0.6 || i === j ? "#3a2a1d" : "#7a6350";
+        ctx.font = v >= 100 ? "10px sans-serif" : "11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(v), x + cell / 2, y + cell / 2 + 4);
+      }
+    });
+    const rec = Math.round(100 * cm[i][i] / rowSum[i]);
+    ctx.fillStyle = "#8a4b2d"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(rec + "%", 60 + cell * n + 8, 40 + cell * i + cell / 2 + 4);
+  });
+  ctx.fillStyle = "#a08a72"; ctx.font = "10px sans-serif"; ctx.textAlign = "left";
+  ctx.fillText("行=真实品种  列=预测品种  右=召回率", 60, H - 8);
+}
+
+async function load() {
+  try {
+    const resp = await fetch("iterations.json?_t=" + Date.now());
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    document.getElementById("err").style.display = "none";
+    render(data);
+  } catch (e) {
+    document.getElementById("err").style.display = "block";
+    listEl.innerHTML = "";
+  }
+}
+
+function render(data) {
+  listEl.innerHTML = "";
+  const badge = {
+    "生产": '<span class="badge prod">当前生产</span>',
+    "历史": '<span class="badge hist">历史</span>',
+    "弃用": '<span class="badge void">已弃用</span>',
+  };
+  [...data.iterations].reverse().forEach(it => {
+    const div = document.createElement("div");
+    div.className = "ver" + (it.status === "生产" ? " prod" : "");
+    const canvas = document.createElement("canvas");
+    div.innerHTML =
+      '<div class="head"><span class="v">' + it.version + "</span>" +
+      '<span class="nm">' + it.name + "</span>" +
+      (badge[it.status] || "") + "</div>" +
+      '<div class="acc">测试准确率 ' + it.test_acc + "%</div>" +
+      '<div class="meta">' + it.date + " · " + it.dataset + "</div>" +
+      '<div class="sum">' + it.summary + "</div>";
+    div.appendChild(canvas);
+    listEl.appendChild(div);
+    drawCM(canvas, it.confusion_matrix, it.classes);
+  });
+}
+
+load();
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

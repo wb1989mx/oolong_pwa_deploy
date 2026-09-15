@@ -1,0 +1,26 @@
+{
+  "name": "乌龙茶品种识别",
+  "short_name": "乌龙茶识别",
+  "description": "乌龙茶干茶品种识别：拍照识别 6 大品种，支持数据上传参与模型迭代，展示迭代混淆矩阵。",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f1e9",
+  "theme_color": "#8a4b2d",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
