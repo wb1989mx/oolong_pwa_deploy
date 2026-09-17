@@ -1,7 +1,7 @@
 # 乌龙茶品种识别 PWA — 部署与维护说明
 
-干茶识别 6 大品种（东方美人 / 台湾乌龙 / 安溪铁观音 / 广东单丛 / 武夷岩茶 / 黄金桂）。
-当前生产模型 **v7（测试准确率 85.0%）**，浏览器端 ONNX 推理，纯静态、可离线（PWA）。
+干茶识别 8 大品种（东方美人 / 台湾乌龙 / 广东单丛 / 武夷岩茶 / 浓香铁观音 / 清香铁观音 / 陈香铁观音 / 黄金桂）。
+当前生产模型 **v12（测试准确率 80.0%）**，浏览器端 ONNX 推理，纯静态、可离线（PWA）。
 
 ## 一、文件结构
 
@@ -16,7 +16,7 @@ pwa/
 ├─ iterations.json   迭代记录数据（训练端维护更新）
 ├─ icon-192.png / icon-512.png
 ├─ lib/              ort.min.js + jszip（本地）；wasm 运行时走 CDN，由 SW 缓存
-└─ model/oolong_v7_single.onnx   v7 模型（FP32, 16.4MB）
+└─ model/oolong_v12_single.onnx   v12 模型（FP32, 16.4MB）
 ```
 
 > 总大小约 17MB，GitHub 网页上传单次限制 25MB，一次上传即可。
@@ -47,9 +47,9 @@ pwa/
 
 1. 训练出新模型 `best_model_vN.pth`（复用 `train_v5.py --data-dir dataset_vN --tag vN`）
 2. 转换：`export_onnx.py`（改模型路径）→ 生成 `oolong_vN_single.onnx`，**验证测试集准确率一致**
-3. 替换 `pwa/model/oolong_v7_single.onnx`（或新增 vN 文件并在 `app.js` 改 `MODEL_URL`）
+3. 替换 `pwa/model/oolong_v12_single.onnx`（或新增 vN 文件并在 `app.js` 改 `MODEL_URL`）
 4. 追加 `pwa/iterations.json` 一条新记录（版本/日期/数据量/准确率/混淆矩阵/文字说明），并把 `current_version` 更新
-5. 更新各页 `app.js?v=N` 版本号 + `sw.js` 中 `CACHE = "oolong-v7-vN"`（强制旧用户刷新缓存）
+5. 更新各页 `app.js?v=N` 版本号 + `sw.js` 中 `CACHE = "oolong-v12-vN"`（强制旧用户刷新缓存）
 6. 上传覆盖仓库文件，GitHub Pages 自动更新
 
 ### 数据质量门（防止污染，吸取 v8 教训）
@@ -71,7 +71,9 @@ python -m http.server 8765 --directory pwa
 |---|---|---|---|
 | v5 | 83.3% | 历史 | 干净基线（修复泄漏后） |
 | v6 | 79.2% | 历史 | 主体分割方案（证伪） |
-| **v7** | **85.0%** | **生产** | 补淘宝岩茶数据，当前部署 |
+| v7 | 85.0% | 历史 | 补淘宝岩茶数据（6 类生产版） |
 | v8 | 78.2% | 弃用 | 微博/小红书补爬污染 |
 | v9 | 75.6% | 弃用 | 激进过滤过度 |
 | v10 | 76.1% | 弃用 | 温和过滤仍污染 |
+| v11 | 82.8% | 历史 | 铁观音拆清香/浓香（7 类验证） |
+| **v12** | **80.0%** | **生产** | 铁观音三香型（8 类），陈香 100% 召回 |

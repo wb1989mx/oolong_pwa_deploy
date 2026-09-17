@@ -1,5 +1,5 @@
 /* 乌龙茶识别 PWA - Service Worker：缓存优先，离线可用（wasm 运行时来自 CDN，缓存后离线） */
-const CACHE = "oolong-v7-v3";
+const CACHE = "oolong-v12-v1";
 const ASSETS = [
   "./",
   "index.html",
@@ -10,7 +10,7 @@ const ASSETS = [
   "iterations.json",
   "lib/ort.min.js",
   "lib/jszip.min.js",
-  "model/oolong_v7_single.onnx",
+  "model/oolong_v12_single.onnx",
   "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort-wasm-simd-threaded.mjs",
   "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort-wasm-simd-threaded.wasm",
 ];
