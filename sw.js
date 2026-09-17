@@ -1,5 +1,5 @@
 /* 乌龙茶识别 PWA - Service Worker：缓存优先，离线可用（wasm 运行时来自 CDN，缓存后离线） */
-const CACHE = "oolong-v12-v1";
+const CACHE = "oolong-v12-v2";
 const ASSETS = [
   "./",
   "index.html",

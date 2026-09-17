@@ -40,6 +40,35 @@ main { padding: 16px; max-width: 720px; margin: 0 auto; }
 .desc { font-size: 13px; color: #5b4a38; background: #fbf7f0; border-radius: 8px; padding: 10px 12px; margin-top: 10px; line-height: 1.6; }
 .warn { font-size: 13px; color: #c0392b; background: #fdf0ec; border-radius: 8px; padding: 10px 12px; margin-top: 10px; display: none; }
 footer { text-align: center; font-size: 11px; color: #a08a72; padding: 20px 0 30px; }
+
+/* ===== 来源选择层 ===== */
+#pickerMask { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50; align-items: flex-end; justify-content: center; }
+#pickerMask.show { display: flex; }
+#pickerSheet { background: #fff; border-radius: 14px 14px 0 0; width: 100%; max-width: 720px; padding: 10px 16px 22px; animation: slideUp .2s ease; }
+@keyframes slideUp { from { transform: translateY(40px); opacity: .6; } to { transform: none; opacity: 1; } }
+#pickerSheet .sheet-title { text-align: center; font-size: 13px; color: #a08a72; padding: 8px 0 12px; }
+#pickerSheet .sheet-btn { display: block; width: 100%; padding: 15px 0; font-size: 16px; border: none; background: #f6f1e9; border-radius: 10px; margin-bottom: 10px; cursor: pointer; color: #3a2a1d; }
+#pickerSheet .sheet-btn:active { background: #e9dfd0; }
+#pickerSheet .sheet-btn.primary { background: #8a4b2d; color: #fff; }
+#pickerSheet .sheet-btn small { display: block; font-size: 11px; opacity: .75; margin-top: 2px; }
+#pickerSheet .sheet-cancel { width: 100%; padding: 14px 0; font-size: 15px; border: none; background: #fff; border-radius: 10px; cursor: pointer; color: #7a6350; }
+
+/* ===== 裁剪编辑模块 ===== */
+#editor { display: none; position: fixed; inset: 0; background: #17130e; z-index: 60; flex-direction: column; }
+#editor.show { display: flex; }
+#editorTop { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; color: #fff; background: #241d15; }
+#editorTop .t-title { font-size: 16px; font-weight: 700; }
+#editorTop .t-tip { font-size: 11px; color: #cbb9a5; margin-top: 2px; }
+#btnRotate { background: #3a2f23; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer; }
+#editArea { flex: 1; position: relative; overflow: hidden; touch-action: none; }
+#editCanvas { display: block; width: 100%; height: 100%; }
+#editorRatio { display: flex; gap: 8px; padding: 10px 14px; background: #241d15; overflow-x: auto; }
+#editorRatio .r-btn { flex-shrink: 0; background: #3a2f23; color: #cbb9a5; border: 1.5px solid transparent; border-radius: 7px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+#editorRatio .r-btn.on { color: #fff; border-color: #d98e2b; background: #4a3a28; }
+#editorBottom { display: flex; gap: 12px; padding: 12px 16px calc(26px + env(safe-area-inset-bottom)); background: #241d15; }
+#editorBottom .btn { flex: 1; padding: 13px 0; font-size: 16px; text-align: center; }
+#btnCropCancel { background: #4a3f33; color: #e6d9c9; }
+#btnCropOk { background: #d98e2b; color: #fff; }
 </style>
 </head>
 <body>
@@ -56,8 +85,7 @@ footer { text-align: center; font-size: 11px; color: #a08a72; padding: 20px 0 30
   <div class="card">
     <div class="drop" id="drop">
       <strong>点击拍照 / 选择图片</strong>
-      <small>支持相机或相册上传干茶特写</small>
-      <input type="file" id="file" accept="image/*" capture="environment" style="display:none">
+      <small>支持相机（专业模式）或相册，拍照后可裁剪构图</small>
     </div>
     <img id="preview" alt="预览">
     <div style="display:flex;gap:10px;margin-top:12px;">
@@ -78,18 +106,53 @@ footer { text-align: center; font-size: 11px; color: #a08a72; padding: 20px 0 30
     <h2 style="font-size:15px;margin-bottom:8px;">使用提示</h2>
     <p style="font-size:13px;line-height:1.7;color:#5b4a38;">
       1. 拍摄<strong>干茶</strong>特写，避开茶汤、叶底、包装盒与文字。<br>
-      2. 光线均匀，主体占画面 70% 以上。<br>
+      2. 拍照后用编辑框裁剪出茶叶主体，构图更聚焦。<br>
       3. 首次识别需下载模型（约 16MB），之后自动缓存、可离线使用。
     </p>
   </div>
 </main>
 <footer>乌龙茶品种识别系统 · 数据与模型持续迭代中</footer>
 
+<!-- 来源选择层 -->
+<div id="pickerMask">
+  <div id="pickerSheet">
+    <div class="sheet-title">选择图片来源</div>
+    <button class="sheet-btn primary" id="btnTakePhoto">拍 照<small>唤起系统相机，可切换专业模式与构图</small></button>
+    <button class="sheet-btn" id="btnPickAlbum">从相册选择<small>选择已有图片进入编辑</small></button>
+    <button class="sheet-cancel" id="btnPickerCancel">取消</button>
+  </div>
+</div>
+<input type="file" id="fileCamera" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="fileAlbum" accept="image/*" style="display:none">
+
+<!-- 裁剪编辑模块 -->
+<div id="editor">
+  <div id="editorTop">
+    <div>
+      <div class="t-title">编辑图片</div>
+      <div class="t-tip">拖动边框或手柄调整裁剪范围</div>
+    </div>
+    <button id="btnRotate">旋转 90°</button>
+  </div>
+  <div id="editArea"><canvas id="editCanvas"></canvas></div>
+  <div id="editorRatio">
+    <button class="r-btn" data-ratio="free">自由</button>
+    <button class="r-btn on" data-ratio="1">1:1</button>
+    <button class="r-btn" data-ratio="0.75">3:4</button>
+    <button class="r-btn" data-ratio="1.333">4:3</button>
+    <button class="r-btn" data-ratio="0.5625">9:16</button>
+    <button class="r-btn" data-ratio="1.778">16:9</button>
+  </div>
+  <div id="editorBottom">
+    <button class="btn" id="btnCropCancel">取消</button>
+    <button class="btn" id="btnCropOk">确认裁剪</button>
+  </div>
+</div>
+
 <script src="lib/ort.min.js"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 <script>
 const drop = document.getElementById("drop");
-const fileInput = document.getElementById("file");
 const preview = document.getElementById("preview");
 const btnPredict = document.getElementById("btnPredict");
 const btnReset = document.getElementById("btnReset");
@@ -101,23 +164,253 @@ const descEl = document.getElementById("desc");
 
 let currentImg = null;
 
-drop.addEventListener("click", () => fileInput.click());
-fileInput.addEventListener("change", async () => {
-  const f = fileInput.files[0];
-  if (!f) return;
-  statusEl.textContent = "";
-  try {
-    currentImg = await loadImageFromFile(f);
-  } catch (e) {
-    statusEl.textContent = "图片读取失败";
-    return;
+/* ===== 来源选择层 ===== */
+const pickerMask = document.getElementById("pickerMask");
+const fileCamera = document.getElementById("fileCamera");
+const fileAlbum = document.getElementById("fileAlbum");
+
+drop.addEventListener("click", () => pickerMask.classList.add("show"));
+document.getElementById("btnPickerCancel").addEventListener("click", () => pickerMask.classList.remove("show"));
+document.getElementById("btnTakePhoto").addEventListener("click", () => { pickerMask.classList.remove("show"); fileCamera.value = ""; fileCamera.click(); });
+document.getElementById("btnPickAlbum").addEventListener("click", () => { pickerMask.classList.remove("show"); fileAlbum.value = ""; fileAlbum.click(); });
+pickerMask.addEventListener("click", (e) => { if (e.target === pickerMask) pickerMask.classList.remove("show"); });
+
+/* ===== 裁剪编辑模块 ===== */
+const editor = document.getElementById("editor");
+const editCanvas = document.getElementById("editCanvas");
+const ctx = editCanvas.getContext("2d");
+const btnRotate = document.getElementById("btnRotate");
+const btnCropOk = document.getElementById("btnCropOk");
+const btnCropCancel = document.getElementById("btnCropCancel");
+
+let img = null;          // 当前编辑图（可能已旋转）
+let ratio = 1;           // 裁剪宽高比（0=自由）
+let cr = { x: 0, y: 0, w: 0, h: 0 };   // 裁剪框（canvas 显示坐标）
+let imgRect = { x: 0, y: 0, w: 0, h: 0 };  // 图片在 canvas 上的显示区域
+let dpr = 1;
+
+function openEditor(image) {
+  img = image;
+  ratio = 1;
+  editor.classList.add("show");
+  // canvas 像素按显示尺寸 × dpr 提升清晰度
+  dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  layoutCanvas();
+  resetCropToImage();
+  syncRatioBtns();
+  drawEditor();
+}
+
+function layoutCanvas() {
+  const area = document.getElementById("editArea");
+  const aw = area.clientWidth, ah = area.clientHeight;
+  editCanvas.width = Math.max(100, Math.round(aw * dpr));
+  editCanvas.height = Math.max(100, Math.round(ah * dpr));
+}
+
+function resetCropToImage() {
+  const W = editCanvas.width, H = editCanvas.height;
+  const iw = img.width, ih = img.height;
+  const s = Math.min(W / iw, H / ih);
+  imgRect.w = iw * s; imgRect.h = ih * s;
+  imgRect.x = (W - imgRect.w) / 2;
+  imgRect.y = (H - imgRect.h) / 2;
+  cr.x = imgRect.x; cr.y = imgRect.y; cr.w = imgRect.w; cr.h = imgRect.h;
+  applyRatio(true);
+}
+
+function applyRatio(keepCenter) {
+  if (!ratio) return;
+  let w = cr.w, h = cr.h;
+  if (w / h > ratio) h = w / ratio; else w = h * ratio;
+  w = Math.min(w, imgRect.w); h = Math.min(h, imgRect.h);
+  if (w / h < ratio) h = w / ratio; else w = h * ratio;
+  const cx = keepCenter ? cr.x + cr.w / 2 : imgRect.x + imgRect.w / 2;
+  const cy = keepCenter ? cr.y + cr.h / 2 : imgRect.y + imgRect.h / 2;
+  cr.w = w; cr.h = h;
+  cr.x = cx - w / 2; cr.y = cy - h / 2;
+  clampCrop();
+}
+
+function clampCrop() {
+  const minS = Math.min(imgRect.w, imgRect.h) * 0.12;
+  cr.w = Math.max(minS, cr.w); cr.h = Math.max(minS, cr.h);
+  if (ratio) { if (cr.w / cr.h > ratio) cr.h = cr.w / ratio; else cr.w = cr.h * ratio; }
+  cr.x = Math.max(imgRect.x, Math.min(cr.x, imgRect.x + imgRect.w - cr.w));
+  cr.y = Math.max(imgRect.y, Math.min(cr.y, imgRect.y + imgRect.h - cr.h));
+}
+
+function drawEditor() {
+  const W = editCanvas.width, H = editCanvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#17130e";
+  ctx.fillRect(0, 0, W, H);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
+  // 遮罩：裁剪框外压暗
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.fillRect(0, 0, W, cr.y);
+  ctx.fillRect(0, cr.y + cr.h, W, H - cr.y - cr.h);
+  ctx.fillRect(0, cr.y, cr.x, cr.h);
+  ctx.fillRect(cr.x + cr.w, cr.y, W - cr.x - cr.w, cr.h);
+  // 三分网格
+  ctx.strokeStyle = "rgba(255,255,255,.35)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cr.x + cr.w * i / 3, cr.y); ctx.lineTo(cr.x + cr.w * i / 3, cr.y + cr.h);
+    ctx.moveTo(cr.x, cr.y + cr.h * i / 3); ctx.lineTo(cr.x + cr.w, cr.y + cr.h * i / 3);
+    ctx.stroke();
   }
-  preview.src = URL.createObjectURL(f);
-  preview.style.display = "block";
-  btnPredict.disabled = false;
-  resultCard.style.display = "none";
+  // 边框
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(cr.x, cr.y, cr.w, cr.h);
+  // 四角手柄
+  const hs = Math.max(18, Math.round(cr.w * 0.06));
+  ctx.fillStyle = "#d98e2b";
+  const corners = [[cr.x, cr.y], [cr.x + cr.w, cr.y], [cr.x, cr.y + cr.h], [cr.x + cr.w, cr.y + cr.h]];
+  for (const [px, py] of corners) {
+    ctx.beginPath();
+    ctx.arc(px, py, hs / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+/* ---- 裁剪框拖拽交互（pointer 事件，兼容触摸/鼠标） ---- */
+let drag = null; // {mode, startX, startY, sx, sy, sw, sh}
+
+function hitTest(px, py) {
+  const t = 22 * dpr / 2;
+  const cs = [[cr.x, cr.y, "nw"], [cr.x + cr.w, cr.y, "ne"], [cr.x, cr.y + cr.h, "sw"], [cr.x + cr.w, cr.y + cr.h, "se"]];
+  for (const [x, y, m] of cs) {
+    if (Math.abs(px - x) <= t && Math.abs(py - y) <= t) return m;
+  }
+  if (px > cr.x && px < cr.x + cr.w && py > cr.y && py < cr.y + cr.h) return "move";
+  return null;
+}
+
+function toCanvas(e) {
+  const r = editCanvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * editCanvas.width, y: (e.clientY - r.top) / r.height * editCanvas.height };
+}
+
+function resizeCrop(mode, dx, dy) {
+  let x = cr.x, y = cr.y, w = cr.w, h = cr.h;
+  const maxW = imgRect.x + imgRect.w - x, maxH = imgRect.y + imgRect.h - y;
+  if (mode === "se") { w = Math.min(maxW, w + dx); h = Math.min(maxH, h + dy); }
+  else if (mode === "nw") { w = Math.min(cr.x + cr.w - imgRect.x, w - dx); x = cr.x + cr.w - w; h = Math.min(cr.y + cr.h - imgRect.y, h - dy); y = cr.y + cr.h - h; }
+  else if (mode === "ne") { w = Math.min(maxW, w + dx); h = Math.min(cr.y + cr.h - imgRect.y, h - dy); y = cr.y + cr.h - h; }
+  else if (mode === "sw") { w = Math.min(cr.x + cr.w - imgRect.x, w - dx); x = cr.x + cr.w - w; h = Math.min(maxH, h + dy); }
+  if (w < 1 || h < 1) return;
+  if (ratio) {
+    if (mode === "se" || mode === "nw") { if (w / h > ratio) h = w / ratio; else w = h * ratio; }
+    else if (mode === "ne") { h = w / ratio; y = cr.y + cr.h - h; }
+    else if (mode === "sw") { w = h * ratio; x = cr.x + cr.w - w; }
+    // 边界回推
+    if (x < imgRect.x) { w -= (imgRect.x - x); x = imgRect.x; h = w / ratio; }
+    if (y < imgRect.y) { h -= (imgRect.y - y); y = imgRect.y; w = h * ratio; }
+    if (x + w > imgRect.x + imgRect.w) { w = imgRect.x + imgRect.w - x; h = w / ratio; }
+    if (y + h > imgRect.y + imgRect.h) { h = imgRect.y + imgRect.h - y; w = h * ratio; }
+  }
+  cr.x = x; cr.y = y; cr.w = Math.max(1, w); cr.h = Math.max(1, h);
+}
+
+editCanvas.addEventListener("pointerdown", (e) => {
+  const p = toCanvas(e);
+  const mode = hitTest(p.x, p.y);
+  if (!mode) return;
+  drag = { mode, sx: p.x, sy: p.y, ox: cr.x, oy: cr.y, ow: cr.w, oh: cr.h };
+  try { editCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  e.preventDefault();
+});
+editCanvas.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const p = toCanvas(e);
+  const dx = p.x - drag.sx, dy = p.y - drag.sy;
+  if (drag.mode === "move") {
+    cr.x = Math.max(imgRect.x, Math.min(drag.ox + dx, imgRect.x + imgRect.w - cr.w));
+    cr.y = Math.max(imgRect.y, Math.min(drag.oy + dy, imgRect.y + imgRect.h - cr.h));
+  } else {
+    resizeCrop(drag.mode, dx, dy);
+  }
+  drawEditor();
+});
+function endDrag() { drag = null; }
+editCanvas.addEventListener("pointerup", endDrag);
+editCanvas.addEventListener("pointercancel", endDrag);
+
+/* ---- 工具栏 ---- */
+btnRotate.addEventListener("click", () => {
+  const oc = document.createElement("canvas");
+  oc.width = img.height; oc.height = img.width;
+  const octx = oc.getContext("2d");
+  octx.translate(oc.width, 0);
+  octx.rotate(Math.PI / 2);
+  octx.drawImage(img, 0, 0);
+  img = oc;
+  layoutCanvas();
+  resetCropToImage();
+  drawEditor();
 });
 
+document.querySelectorAll("#editorRatio .r-btn").forEach((b) => {
+  b.addEventListener("click", () => {
+    ratio = parseFloat(b.dataset.ratio) || 0;
+    syncRatioBtns();
+    applyRatio(false);
+    drawEditor();
+  });
+});
+function syncRatioBtns() {
+  document.querySelectorAll("#editorRatio .r-btn").forEach((b) => {
+    b.classList.toggle("on", (parseFloat(b.dataset.ratio) || 0) === ratio);
+  });
+}
+
+btnCropCancel.addEventListener("click", () => {
+  editor.classList.remove("show");
+  if (!currentImg) { preview.style.display = "none"; btnPredict.disabled = true; }
+});
+btnCropOk.addEventListener("click", () => {
+  // 映射回原图像素坐标并输出
+  const scaleX = img.width / imgRect.w, scaleY = img.height / imgRect.h;
+  const sx = (cr.x - imgRect.x) * scaleX, sy = (cr.y - imgRect.y) * scaleY;
+  const sw = cr.w * scaleX, sh = cr.h * scaleY;
+  const oc = document.createElement("canvas");
+  const maxEdge = 2048;
+  const os = Math.min(1, maxEdge / Math.max(sw, sh));
+  oc.width = Math.max(4, Math.round(sw * os));
+  oc.height = Math.max(4, Math.round(sh * os));
+  oc.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, oc.width, oc.height);
+  const blobUrl = oc.toDataURL("image/jpeg", 0.92);
+  const outImg = new Image();
+  outImg.onload = () => {
+    currentImg = outImg;
+    preview.src = blobUrl;
+    preview.style.display = "block";
+    btnPredict.disabled = false;
+    resultCard.style.display = "none";
+    statusEl.textContent = "";
+    editor.classList.remove("show");
+  };
+  outImg.src = blobUrl;
+});
+
+function handleFile(file) {
+  if (!file) return;
+  statusEl.textContent = "";
+  loadImageFromFile(file).then((image) => {
+    resultCard.style.display = "none";
+    openEditor(image);
+  }).catch(() => { statusEl.textContent = "图片读取失败"; });
+}
+fileCamera.addEventListener("change", () => handleFile(fileCamera.files[0]));
+fileAlbum.addEventListener("change", () => handleFile(fileAlbum.files[0]));
+
+/* ===== 识别 ===== */
 btnPredict.addEventListener("click", async () => {
   if (!currentImg) return;
   btnPredict.disabled = true;
@@ -160,12 +453,14 @@ function renderResult(ranked) {
 
 btnReset.addEventListener("click", () => {
   currentImg = null;
-  fileInput.value = "";
   preview.style.display = "none";
   resultCard.style.display = "none";
   btnPredict.disabled = true;
   statusEl.textContent = "";
+  editor.classList.remove("show");
 });
+
+window.addEventListener("resize", () => { if (editor.classList.contains("show")) { layoutCanvas(); resetCropToImage(); drawEditor(); } });
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
